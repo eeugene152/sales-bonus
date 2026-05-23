@@ -38,14 +38,13 @@ function roundUp(toRoundUp) {
  * @returns {{revenue, top_products, bonus, name, sales_count, profit, seller_id}[]}
  */
 function analyzeSalesData(data, options) {
-  if (
-    !data ||
-    !Array.isArray(data.sellers) ||
-    !Array.isArray(data.customers) ||
-    !Array.isArray(data.products) ||
-    !Array.isArray(data.purchase_records)
+  if (!data
+    || !Array.isArray(data.sellers) || data.sellers.length === 0
+    || !Array.isArray(data.customers) || data.customers.length === 0
+    || !Array.isArray(data.products) || data.products.length === 0
+    || !Array.isArray(data.purchase_records) || data.purchase_records.length === 0
   ) {
-    throw new Error("Некорректные входные данные");
+    throw new Error('Некорректные входные данные'); 
   }
 
   // Проверка наличия опций (две функции) - инверсия управления/объект настроек
