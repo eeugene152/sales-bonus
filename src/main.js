@@ -5,7 +5,10 @@
  * @returns {number}
  */
 function calculateSimpleRevenue(purchase, _product) {
-   // @TODO: Расчет выручки от операции
+  // @TODO: Расчет выручки от операции
+  return (
+    purchase.sale_price * (1 - purchase.discount / 100) * purchase.quantity
+  );
 }
 
 /**
@@ -16,7 +19,17 @@ function calculateSimpleRevenue(purchase, _product) {
  * @returns {number}
  */
 function calculateBonusByProfit(index, total, seller) {
-    // @TODO: Расчет бонуса от позиции в рейтинге
+  // Расчет бонуса от позиции в рейтинге (сокращаем лесенки
+  // - паттерн 'ранний возврат')
+  if (index === 0) return seller.profit * 0.15; // для первого места
+  if (index === 1 || index === 2) return seller.profit * 0.1; // для второго и третьего
+  if (index === total - 1) return 0; // последнему не даем ничего
+  return seller.profit * 0.05; // Для всех остальных
+}
+
+// функция для округления
+function roundUp(toRoundUp) {
+  return Number(toRoundUp.toFixed(2));
 }
 
 /**
@@ -26,19 +39,94 @@ function calculateBonusByProfit(index, total, seller) {
  * @returns {{revenue, top_products, bonus, name, sales_count, profit, seller_id}[]}
  */
 function analyzeSalesData(data, options) {
-    // @TODO: Проверка входных данных
+  if (
+    !data ||
+    !Array.isArray(data.sellers) ||
+    !Array.isArray(data.customers) ||
+    !Array.isArray(data.products) ||
+    !Array.isArray(data.purchase_records)
+  ) {
+    throw new Error("Некорректные входные данные");
+  }
 
-    // @TODO: Проверка наличия опций
+  // Проверка наличия опций (две функции) - инверсия управления/объект настроек
+  const { calculateRevenue, calculateBonus } = options;
+  if (
+    typeof options !== "object" ||
+    typeof calculateRevenue !== "function" ||
+    typeof calculateBonus !== "function"
+  ) {
+    throw new Error("Функции расчета не определены");
+  }
 
-    // @TODO: Подготовка промежуточных данных для сбора статистики
+  // сбор статистики
+  const sellerStats = data.sellers.map((seller) => ({
+    // Заполним начальными данными, содадим проектные поля по ТЗ.
+    id: seller.id,
+    name: `${seller.first_name} ${seller.last_name}`,
+    revenue: 0,
+    profit: 0,
+    sales_count: 0,
+    products_sold: {},
+  }));
 
-    // @TODO: Индексация продавцов и товаров для быстрого доступа
+  // Индексация продавцов и товаров для быстрого доступа
+  const sellerIndex = sellerStats.reduce((sellerIndex, seller) => {
+    sellerIndex[seller.id] = seller;
+    return sellerIndex;
+  }, {});
+  const productIndex = data.products.reduce((productIndex, product) => {
+    productIndex[product.sku] = product;
+    return productIndex;
+  }, {});
 
-    // @TODO: Расчет выручки и прибыли для каждого продавца
+  // Расчет выручки и прибыли для каждого продавца
+  // + считаем кол-во проданного товара
+  data.purchase_records.forEach((record) => {
+    const seller = sellerIndex[record.seller_id];
+    // считаем/увеличиваем общую сумму выручки всех продаж
+    if (seller) {
+      seller.sales_count++;
+      // пробегаемся по позициям чеков. считаем выручку и профит
+      record.items.forEach((item) => {
+        const product = productIndex[item.sku];
+        const itemProductCost = product.purchase_price * item.quantity;
+        const itemProductRevenue = calculateRevenue(item, product);
+        seller.revenue += record.total_amount;
+        seller.profit += itemProductRevenue - itemProductCost;
+        // добавляем проданный товар (если нет) + считаем количество его продажи
+        if (!seller.products_sold[item.sku]) {
+          seller.products_sold[item.sku] = 0;
+        }
+        seller.products_sold[item.sku] += item.quantity;
+      });
+    }
+  });
+  // Сортировка продавцов по прибыли
+  sellerStats.sort((smaller, bigger) => bigger.profit - smaller.profit);
 
-    // @TODO: Сортировка продавцов по прибыли
-
-    // @TODO: Назначение премий на основе ранжирования
-
-    // @TODO: Подготовка итоговой коллекции с нужными полями
+  // Возвращаем результат маппинга из функции analyzeSalesData
+  return sellerStats.map((seller, index) => {
+    // Сортируем и формируем топ-10 товаров
+    const formattedProductsSold = Object.entries(seller.products_sold).map(
+      ([sku, quantity]) => {
+        return { sku, quantity };
+      },
+    );
+    const formattedProductsSoldTop10 = formattedProductsSold
+      .sort((smaller, bigger) => bigger.quantity - smaller.quantity)
+      .slice(0, 10);
+    const sellerBonus = calculateBonus(index, sellerStats.length, seller);
+    // Подготовка итоговой коллекции с нужными полями
+    //  Формируем итоговый объект отчета по ТЗ
+    return {
+      seller_id: seller.id,
+      name: seller.name,
+      revenue: roundUp(seller.revenue),
+      profit: roundUp(seller.profit),
+      sales_count: seller.sales_count,
+      top_products: formattedProductsSoldTop10,
+      bonus: roundUp(sellerBonus),
+    };
+  });
 }
