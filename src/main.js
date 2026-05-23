@@ -92,7 +92,7 @@ function analyzeSalesData(data, options) {
         const product = productIndex[item.sku];
         const itemProductCost = product.purchase_price * item.quantity;
         const itemProductRevenue = calculateRevenue(item, product);
-        seller.revenue += record.total_amount;
+        seller.revenue += itemProductRevenue;
         seller.profit += itemProductRevenue - itemProductCost;
         // добавляем проданный товар (если нет) + считаем количество его продажи
         if (!seller.products_sold[item.sku]) {
